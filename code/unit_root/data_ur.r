@@ -1,4 +1,5 @@
 
+
 # testing stationarity
 
 rm(list = ls())

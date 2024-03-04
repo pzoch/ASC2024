@@ -13,7 +13,7 @@ require(dynlm)
 require(lmtest)
 # load data
 
-input_dir  = "C:/users/Piotr/Dropbox/WNE/ASC_2023/data/"
+input_dir  = "C:/users/Piotr/Dropbox/WNE/ASC_2024/data/"
 agg_data     = fread(paste0(input_dir,"/agg_data.csv"),header = TRUE)
 
 
