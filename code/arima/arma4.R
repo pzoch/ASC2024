@@ -13,60 +13,122 @@ require(lubridate)
 
 # load data
 
-datasetY <- get_eurostat("namq_10_gdp")
+datasetPi <- get_eurostat("prc_hicp_manr")
 
-logY <-subset(datasetY, geo == c("PL") & na_item =="B1G" & unit=="CP_MNAC" & s_adj == "NSA") 
-logY <- na.omit(ts(rev(logY$values),start = c(1995, 1), frequency =4))
-dlogY <- (diff(logY, lag = 1) * 100) # growth rate
-
-
-dlogY   <- window(dlogY,start = c(2004, 4), end = c(2019, 4))
-data_testing.dlogY  <- window(dlogY, start = c(2019, 1))
-data_training.dlogY    <- window(dlogY, end = c(2018, 4))
-
-autoplot(dlogY)
+tempPi <-subset(datasetPi, geo == c("PL") & coicop=="CP00" & unit=="RCH_A") 
+tempPi <- na.omit(ts(rev(tempPi$values),start = c(1997, 1), frequency =12))
 
 
+Pi   <- window(tempPi,start = c(2002, 1), end = c(2019, 12))
 
-#SARMA
+data_training.Pi <- window(Pi, end = c(2018, 12))
+data_testing.Pi <- window(Pi, start = c(2019, 1))
+autoplot(Pi)
+
+
+
+# Box-Jenkins procedure
+
+  # ACF and PACF
+  par(mfrow=c(1,2))
+  acf(data_training.Pi,lag.max=24) 
+  pacf(data_training.Pi,lag.max=24)
+  df_test <- ur.df(data_training.Pi, type="none", lags=4)
+
+  # is there a problem?
+  model  <- arima(data_training.Pi, order = c(2,0,0), method = "ML")
+  
+  # more specifications
+  model_plusar  <- arima(data_training.Pi, order = c(3,0,0), method = "ML")
+  model_plusma  <- arima(data_training.Pi, order = c(2,0,1), method = "ML")
+  coeftest(model)
+  coeftest(model_plusar)
+  coeftest(model_plusma)
+  
+  resids <- model$residuals
+  Box.test(resids,lag=24, type="Ljung-Box",fitdf = 2 + 0 )
+  checkresiduals(model)
+  
+  
+  # how do we interpret these results?
+  par(mfrow=c(1,2))
+  acf(resids,lag.max=24) 
+  pacf(resids,lag.max=24)  
+  coeftest(model)
+  
+# try with AIC etc
+  # information criteria
+  model_aic = auto.arima(data_training.Pi,max.d=0,max.p=24,max.q=24,ic="aic",seasonal = FALSE,stepwise=FALSE, approximation=FALSE)
+  model_bic = auto.arima(data_training.Pi,max.d=0,max.p=24,max.q=24,ic="bic",seasonal = FALSE,stepwise=FALSE, approximation=FALSE)
+
+  checkresiduals(model_aic)
+  checkresiduals(model_bic)
+  
+  
+  
+# general to specific 
+  model_general   <- arima(data_training.Pi, order = c(3,0,1), method = "ML")
+  model_specific  <- arima(data_training.Pi, order = c(2,0,0), method = "ML")
+  lgen = logLik(model_general)
+  lspec =logLik(model_specific)
+  dfs <- length(coef(model_general)) - length(coef(model_specific))
+  teststat<--2*(as.numeric(lspec-lgen))
+  pchisq(teststat,df=dfs,lower.tail=FALSE)
+  
+  
+  
+  
+  
+  ### conclusion? ###
+
+
+ar.coef <- model[["coef"]][1:2]
+ma.coef = NULL
+
+
+#MA representation
+par(mfrow=c(1,1))
+IRF <- ARMAtoMA(ar = ar.coef,ma = ma.coef,24)
+IRF <- ts(c(1,IRF),start=0)
+plot.ts(IRF)
+
+
+# forecasts
+autoplot(forecast(model,h=12)) + autolayer(Pi)
+autoplot(forecast(model_aic,h=12)) + autolayer(Pi)
+autoplot(forecast(model_bic,h=12)) + autolayer(Pi)
+
+
+###SARMA
 # ACF and PACF
+
 par(mfrow=c(1,2))
-acf(data_training.dlogY,lag.max=12) 
-pacf(data_training.dlogY,lag.max=12)  
+acf(data_training.Pi,lag.max=24) 
+pacf(data_training.Pi,lag.max=24)  
 
 
-data_training.dlogY4 <- diff(data_training.dlogY,lag=4)
+data_training.Pi12 <- diff(data_training.Pi,lag=12)
 par(mfrow=c(1,2))
-acf(data_training.dlogY4,lag.max=12) 
-pacf(data_training.dlogY4,lag.max=12)  
+acf(data_training.Pi12,lag.max=24) 
+pacf(data_training.Pi12,lag.max=24)  
 
 
-model_s  <- arima(data_training.dlogY, order = c(1,0,1), seasonal=c(1,0,1), method = "ML")
+model_s  <- arima(data_training.Pi, order = c(2,0,0), seasonal=c(1,1,0), method = "ML")
 resids_s <- model_s$residuals
-checkresiduals(model_s)
+
 # how do we interpret these results?
 par(mfrow=c(1,2))
 acf(resids_s,lag.max=24) 
 pacf(resids_s,lag.max=24)  
 coeftest(model_s)
 
-model_s_aic = auto.arima(data_training.dlogY,max.d=0,max.D=0,max.p=4,max.q=4,ic="aic")
-model_s_bic = auto.arima(data_training.dlogY,max.d=0,max.D=0,max.p=4,max.q=4,ic="bic")
+model_s_aic = auto.arima(data_training.Pi,max.d=0,max.p=24,max.q=24,ic="aic")
+model_s_bic = auto.arima(data_training.Pi,max.d=0,max.p=24,max.q=24,ic="bic")
 checkresiduals(model_s_aic)
 checkresiduals(model_s_bic)
-autoplot(forecast(model_s,h=4)) + autolayer(dlogY)
-autoplot(forecast(model_s_aic,h=4)) + autolayer(dlogY)
-autoplot(forecast(model_s_bic,h=4)) + autolayer(dlogY)
-
-model_s_aic = auto.arima(data_training.dlogY,max.d=0,max.D=1,max.p=4,max.q=4,ic="aic")
-model_s_bic = auto.arima(data_training.dlogY,max.d=0,max.D=1,max.p=4,max.q=4,ic="bic")
-checkresiduals(model_s_aic)
-checkresiduals(model_s_bic)
-autoplot(forecast(model_s,h=4)) + autolayer(dlogY)
-autoplot(forecast(model_s_aic,h=4)) + autolayer(dlogY)
-autoplot(forecast(model_s_bic,h=4)) + autolayer(dlogY)
+autoplot(forecast(model_s,h=12)) + autolayer(Pi)
+autoplot(forecast(model_s_aic,h=12)) + autolayer(Pi)
+autoplot(forecast(model_s_bic,h=12)) + autolayer(Pi)
 
 
-model  <- arima(data_training.dlogY, order = c(1,0,1), method = "ML")
-autoplot(forecast(model,h=4)) + autolayer(dlogY)
-accuracy(model_s)
+
