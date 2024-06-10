@@ -79,6 +79,7 @@ pacf(x_ar,lag.max=24)
 pacf(x_ur,lag.max=24)  
 
 
+
 # Box-Jenkins AirPassengers
 
 autoplot(AirPassengers)
@@ -106,6 +107,18 @@ summary(df_test)
 
 df_test <-  ur.df(lAP, type="trend", lags=12)
 summary(df_test)
+
+dlAP12 <- diff(lAP,lag=12)
+autoplot(dlAP12)
+
+par(mfrow=c(1,3))
+acf(dlAP12,lag.max=24) 
+pacf(dlAP12,lag.max=24) 
+spec.pgram(coredata(dlAP12),log='no',span=5)
+
+df_test <-  ur.df(dlAP12, type="none", lags=12)
+summary(df_test)
+
 
 HEGY_test <- hegy.test(lAP, deterministic = c(1,1,1),lag.method = c("AIC"), maxlag = 24)
 CH_test <- ch.test(lAP,  type ="trigonometric", sid ="all",lag1=TRUE)
